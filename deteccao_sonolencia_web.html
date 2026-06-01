@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Detector de Sonolência</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;600;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0a0c0f;
+    --surface:   #111418;
+    --border:    #1e2329;
+    --ok:        #00e676;
+    --warn:      #ff9800;
+    --danger:    #f44336;
+    --text:      #e0e6ef;
+    --muted:     #4a5568;
+    --mono:      'Share Tech Mono', monospace;
+    --sans:      'Barlow', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  header {
+    width: 100%;
+    padding: 18px 32px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--surface);
+  }
+  .logo-icon {
+    width: 36px; height: 36px;
+    border: 2px solid var(--ok);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+  header h1 { font-size: 16px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+  header span { font-size: 12px; color: var(--muted); font-family: var(--mono); margin-left: auto; }
+
+  main {
+    width: 100%;
+    max-width: 1100px;
+    padding: 32px 24px;
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 24px;
+  }
+
+  /* ── Vídeo ── */
+  .cam-wrap {
+    position: relative;
+    background: #000;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    aspect-ratio: 4/3;
+  }
+  #video { width: 100%; height: 100%; object-fit: cover; display: block; transform: scaleX(-1); }
+  #overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+
+  .cam-placeholder {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 12px; color: var(--muted);
+    font-size: 14px;
+  }
+  .cam-placeholder svg { opacity: .3; }
+
+  /* Flash overlay */
+  #flash-overlay {
+    position: absolute; inset: 0;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .08s;
+    border-radius: 12px;
+  }
+
+  /* Alert banner */
+  #alert-banner {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    padding: 14px 20px;
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-align: center;
+    transform: translateY(100%);
+    transition: transform .2s ease;
+    pointer-events: none;
+  }
+  #alert-banner.visible { transform: translateY(0); }
+
+  /* ── Painel lateral ── */
+  .panel { display: flex; flex-direction: column; gap: 16px; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+  }
+  .card-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+
+  /* Status principal */
+  .status-icon {
+    width: 64px; height: 64px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px;
+    margin: 0 auto 10px;
+    transition: all .3s;
+    border: 2px solid transparent;
+  }
+  .status-icon.ok     { background: rgba(0,230,118,.1); border-color: var(--ok); }
+  .status-icon.warn   { background: rgba(255,152,0,.1);  border-color: var(--warn); }
+  .status-icon.danger { background: rgba(244,67,54,.1);  border-color: var(--danger);
+                        animation: pulse-icon .6s ease-in-out infinite alternate; }
+  @keyframes pulse-icon {
+    from { box-shadow: 0 0 0 0 rgba(244,67,54,.4); }
+    to   { box-shadow: 0 0 0 12px rgba(244,67,54,0); }
+  }
+
+  #status-text {
+    text-align: center;
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    transition: color .3s;
+  }
+  #status-sub {
+    text-align: center;
+    font-size: 12px;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+
+  /* Métricas */
+  .metric { margin-bottom: 14px; }
+  .metric:last-child { margin-bottom: 0; }
+  .metric-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 6px;
+  }
+  .metric-label { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+  .metric-value { font-size: 13px; font-family: var(--mono); font-weight: 600; }
+  .bar-track {
+    height: 6px; background: var(--border);
+    border-radius: 3px; overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%; border-radius: 3px;
+    transition: width .15s ease, background .3s;
+    width: 0%;
+  }
+
+  /* Log */
+  #log {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    max-height: 130px;
+    overflow-y: auto;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  #log::-webkit-scrollbar { width: 3px; }
+  #log::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .log-entry { display: flex; gap: 8px; }
+  .log-time { color: #2d3748; min-width: 60px; }
+  .log-ok    { color: var(--ok); }
+  .log-warn  { color: var(--warn); }
+  .log-danger{ color: var(--danger); }
+
+  /* Botão */
+  #btn-start {
+    width: 100%;
+    padding: 14px;
+    border-radius: 10px;
+    border: none;
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all .2s;
+    background: var(--ok);
+    color: #000;
+  }
+  #btn-start:hover { filter: brightness(1.12); transform: translateY(-1px); }
+  #btn-start:active { transform: translateY(0); }
+  #btn-start:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; transform: none; }
+  #btn-start.stop { background: var(--danger); color: #fff; }
+
+  /* Sem câmera */
+  .no-cam { text-align: center; font-size: 13px; color: var(--muted); padding: 8px 0; }
+
+  /* Badge "AO VIVO" */
+  .live-badge {
+    position: absolute; top: 12px; left: 12px;
+    background: var(--danger);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    padding: 3px 8px;
+    border-radius: 4px;
+    display: none;
+    align-items: center; gap: 5px;
+  }
+  .live-badge.visible { display: flex; }
+  .live-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #fff;
+    animation: blink 1s step-end infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-icon">👁</div>
+  <h1>DriveSafe — Detector de Sonolência</h1>
+  <span id="clock">--:--:--</span>
+</header>
+
+<main>
+  <!-- Câmera -->
+  <div>
+    <div class="cam-wrap" id="cam-wrap">
+      <video id="video" autoplay muted playsinline></video>
+      <canvas id="overlay"></canvas>
+      <div id="flash-overlay"></div>
+
+      <div class="cam-placeholder" id="placeholder">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+          <circle cx="12" cy="13" r="4"/>
+        </svg>
+        Câmera desligada
+      </div>
+
+      <div id="alert-banner"></div>
+      <div class="live-badge" id="live-badge"><div class="live-dot"></div>AO VIVO</div>
+    </div>
+  </div>
+
+  <!-- Painel -->
+  <div class="panel">
+
+    <!-- Status -->
+    <div class="card">
+      <div class="card-title">Status do Motorista</div>
+      <div class="status-icon ok" id="status-icon">😊</div>
+      <div id="status-text" style="color: var(--ok)">Aguardando câmera</div>
+      <div id="status-sub">— inativo —</div>
+    </div>
+
+    <!-- Métricas -->
+    <div class="card">
+      <div class="card-title">Métricas em Tempo Real</div>
+
+      <div class="metric">
+        <div class="metric-header">
+          <span class="metric-label">EAR – Abertura dos olhos</span>
+          <span class="metric-value" id="ear-val">0.000</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill" id="ear-bar" style="background: var(--ok)"></div></div>
+      </div>
+
+      <div class="metric">
+        <div class="metric-header">
+          <span class="metric-label">MAR – Abertura da boca</span>
+          <span class="metric-value" id="mar-val">0.000</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill" id="mar-bar" style="background: var(--ok)"></div></div>
+      </div>
+
+      <div class="metric">
+        <div class="metric-header">
+          <span class="metric-label">Nível de alerta</span>
+          <span class="metric-value" id="alert-pct">0%</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill" id="alert-bar" style="background: var(--ok)"></div></div>
+      </div>
+    </div>
+
+    <!-- Log -->
+    <div class="card">
+      <div class="card-title">Registro de Eventos</div>
+      <div id="log"><div class="log-entry"><span class="log-time">--:--:--</span><span>Sistema pronto.</span></div></div>
+    </div>
+
+    <!-- Seletor de câmera -->
+    <div class="card">
+      <div class="card-title">Selecionar Câmera</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <select id="cam-select" style="flex:1;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-family:var(--mono);font-size:12px;cursor:pointer;">
+          <option value="">Detectando câmeras…</option>
+        </select>
+        <button id="btn-refresh-cams" title="Atualizar lista" style="background:var(--border);border:none;color:var(--text);border-radius:8px;padding:8px 10px;cursor:pointer;font-size:14px;">↺</button>
+      </div>
+      <div id="cam-hint" style="font-size:11px;color:var(--muted);font-family:var(--mono);margin-top:8px;">Clique em ↺ para listar as câmeras disponíveis.</div>
+    </div>
+
+    <!-- Botão -->
+    <button id="btn-start">▶ Iniciar Monitoramento</button>
+
+  </div>
+</main>
+
+<!-- MediaPipe via CDN -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+
+<script>
+// ── Configurações ──
+const EAR_THRESH    = 0.17;  // Olho precisa fechar bem mais para contar
+const MAR_THRESH    = 0.65;  // Boca precisa abrir bem mais para contar
+const EYE_FRAMES    = 48;  // ~1.6s de olhos fechados para disparar
+const YAWN_FRAMES   = 50;  // ~1.7s de boca aberta para disparar
+
+// Índices MediaPipe FaceMesh
+const L_EYE  = [362,385,387,263,373,380];
+const R_EYE  = [33, 160,158,133,153,144];
+const MOUTH_TOP=13, MOUTH_BOT=14, MOUTH_L=78, MOUTH_R=308;
+
+// ── Estado ──
+let running=false, mpCamera=null, faceMesh=null;
+let eyeCount=0, yawnCount=0, alertActive=false, yawnAlert=false;
+let flashState=false, flashTimer=null, beepTimer=null;
+let audioCtx=null;
+
+// ── Elementos ──
+const video     = document.getElementById('video');
+const canvas    = document.getElementById('overlay');
+const ctx       = canvas.getContext('2d');
+const flashEl   = document.getElementById('flash-overlay');
+const bannerEl  = document.getElementById('alert-banner');
+const btnStart  = document.getElementById('btn-start');
+const placeholder = document.getElementById('placeholder');
+const liveBadge = document.getElementById('live-badge');
+
+// ── Relógio ──
+function updateClock(){
+  const n=new Date();
+  document.getElementById('clock').textContent =
+    n.toTimeString().slice(0,8);
+}
+setInterval(updateClock,1000); updateClock();
+
+// ── Log ──
+function addLog(msg, type=''){
+  const log=document.getElementById('log');
+  const t=new Date().toTimeString().slice(0,8);
+  const el=document.createElement('div');
+  el.className='log-entry';
+  el.innerHTML=`<span class="log-time">${t}</span><span class="log-${type||'ok'}">${msg}</span>`;
+  log.prepend(el);
+  while(log.children.length>30) log.removeChild(log.lastChild);
+}
+
+// ── EAR ──
+function ear(lms, idxs, W, H){
+  const p=idxs.map(i=>({x:lms[i].x*W, y:lms[i].y*H}));
+  const A=dist(p[1],p[5]), B=dist(p[2],p[4]), C=dist(p[0],p[3]);
+  return C>0 ? (A+B)/(2*C) : 0;
+}
+function mar(lms,W,H){
+  const top=lms[MOUTH_TOP], bot=lms[MOUTH_BOT];
+  const ml=lms[MOUTH_L],    mr=lms[MOUTH_R];
+  const v=Math.abs(bot.y-top.y)*H;
+  const h=Math.abs(mr.x-ml.x)*W;
+  return h>0 ? v/h : 0;
+}
+function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+
+// ── Alarme Web Audio ──
+function startBeep(){
+  if(!audioCtx) audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  beepTimer=setInterval(()=>{
+    const osc1=audioCtx.createOscillator();
+    const osc2=audioCtx.createOscillator();
+    const gain=audioCtx.createGain();
+    osc1.frequency.value=880; osc1.type='sawtooth';
+    osc2.frequency.value=1100; osc2.type='square';
+    gain.gain.setValueAtTime(0.6, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime+0.35);
+    osc1.connect(gain); osc2.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc1.start(); osc2.start();
+    osc1.stop(audioCtx.currentTime+0.36);
+    osc2.stop(audioCtx.currentTime+0.36);
+  },420);
+}
+function stopBeep(){ clearInterval(beepTimer); beepTimer=null; }
+
+// ── Flash visual ──
+function startFlash(){
+  if(flashTimer) return;
+  flashTimer=setInterval(()=>{
+    flashState=!flashState;
+    flashEl.style.background = flashState
+      ? 'rgba(255,255,255,0.30)'
+      : 'rgba(244,67,54,0.35)';
+    flashEl.style.opacity='1';
+  },160);
+}
+function stopFlash(){
+  clearInterval(flashTimer); flashTimer=null;
+  flashEl.style.opacity='0';
+}
+
+// ── Atualizar UI ──
+function setStatus(state){
+  const icon=document.getElementById('status-icon');
+  const txt=document.getElementById('status-text');
+  const sub=document.getElementById('status-sub');
+
+  icon.className='status-icon '+state;
+  if(state==='danger'){
+    icon.textContent='😴';
+    txt.style.color='var(--danger)';
+    txt.textContent='SONOLÊNCIA DETECTADA!';
+    sub.textContent='Alarme ativado';
+    bannerEl.style.background='var(--danger)';
+    bannerEl.style.color='#fff';
+    bannerEl.textContent='⚠ ACORDE! PERIGO DE ACIDENTE ⚠';
+    bannerEl.className='visible';
+  } else if(state==='warn'){
+    icon.textContent='🥱';
+    txt.style.color='var(--warn)';
+    txt.textContent='Bocejo detectado';
+    sub.textContent='Fique atento';
+    bannerEl.style.background='var(--warn)';
+    bannerEl.style.color='#000';
+    bannerEl.textContent='~ Sinal de cansaço detectado ~';
+    bannerEl.className='visible';
+  } else {
+    icon.textContent='😊';
+    txt.style.color='var(--ok)';
+    txt.textContent='Motorista Alerta';
+    sub.textContent='Olhos abertos';
+    bannerEl.className='';
+  }
+}
+
+function updateBars(earVal, marVal, alertPct){
+  const earBar=document.getElementById('ear-bar');
+  const marBar=document.getElementById('mar-bar');
+  const alertBar=document.getElementById('alert-bar');
+
+  document.getElementById('ear-val').textContent=earVal.toFixed(3);
+  document.getElementById('mar-val').textContent=marVal.toFixed(3);
+  document.getElementById('alert-pct').textContent=Math.round(alertPct)+'%';
+
+  // EAR: valor alto = bom (olhos abertos). Normaliza 0–0.4
+  const earPct = Math.min(earVal/0.4,1)*100;
+  earBar.style.width=earPct+'%';
+  earBar.style.background = earVal < EAR_THRESH ? 'var(--danger)' : 'var(--ok)';
+
+  // MAR: valor baixo = bom (boca fechada). Normaliza 0–0.8
+  const marPct = Math.min(marVal/0.8,1)*100;
+  marBar.style.width=marPct+'%';
+  marBar.style.background = marVal > MAR_THRESH ? 'var(--warn)' : 'var(--ok)';
+
+  // Barra de alerta
+  alertBar.style.width=alertPct+'%';
+  alertBar.style.background = alertPct>80 ? 'var(--danger)' : alertPct>40 ? 'var(--warn)' : 'var(--ok)';
+}
+
+// ── Desenhar landmarks no canvas ──
+function drawEye(lms, idxs, W, H, color){
+  ctx.strokeStyle=color; ctx.lineWidth=1.5;
+  ctx.beginPath();
+  idxs.forEach((id,i)=>{
+    const x=lms[id].x*W, y=lms[id].y*H;
+    i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  });
+  ctx.closePath(); ctx.stroke();
+}
+
+// ── Callback MediaPipe ──
+function onResults(results){
+  canvas.width=video.videoWidth||640;
+  canvas.height=video.videoHeight||480;
+  const W=canvas.width, H=canvas.height;
+
+  ctx.clearRect(0,0,W,H);
+
+  if(!results.multiFaceLandmarks || results.multiFaceLandmarks.length===0){
+    eyeCount=Math.max(0,eyeCount-1);
+    yawnCount=Math.max(0,yawnCount-1);
+    if(eyeCount===0 && alertActive){ stopBeep(); stopFlash(); alertActive=false; setStatus('ok'); }
+    updateBars(0,0,0);
+    return;
+  }
+
+  const lms=results.multiFaceLandmarks[0];
+  const earL=ear(lms,L_EYE,W,H);
+  const earR=ear(lms,R_EYE,W,H);
+  const earAvg=(earL+earR)/2;
+  const marAvg=mar(lms,W,H);
+
+  // Contagens
+  if(earAvg<EAR_THRESH) eyeCount++; else eyeCount=Math.max(0,eyeCount-1);
+  if(marAvg>MAR_THRESH) yawnCount++; else yawnCount=Math.max(0,yawnCount-1);
+
+  alertActive = eyeCount >= EYE_FRAMES;
+  yawnAlert   = yawnCount >= YAWN_FRAMES && !alertActive;
+
+  const alertPct = Math.min(eyeCount/EYE_FRAMES,1)*100;
+
+  // Cor dos contornos
+  const eyeColor = alertActive ? '#f44336' : '#00e676';
+  // MediaPipe retorna landmarks já no espaço da imagem original (sem espelho)
+  // O vídeo é espelhado só via CSS (transform:scaleX(-1)) então desenhamos normal
+  drawEye(lms, L_EYE, W, H, eyeColor);
+  drawEye(lms, R_EYE, W, H, eyeColor);
+
+  // Ponto nariz
+  const nose=lms[1];
+  ctx.beginPath();
+  ctx.arc(nose.x*W, nose.y*H, 3, 0, Math.PI*2);
+  ctx.fillStyle=eyeColor; ctx.fill();
+
+  updateBars(earAvg, marAvg, alertPct);
+
+  if(alertActive){
+    if(!beepTimer) { startBeep(); addLog('SONOLÊNCIA DETECTADA — alarme ativado','danger'); }
+    startFlash();
+    setStatus('danger');
+  } else if(yawnAlert){
+    stopBeep(); stopFlash();
+    setStatus('warn');
+    if(!yawnAlert._logged){ addLog('Bocejo detectado','warn'); yawnAlert._logged=true; }
+  } else {
+    if(beepTimer){ stopBeep(); stopFlash(); addLog('Motorista recuperado','ok'); }
+    setStatus('ok');
+    yawnAlert && (yawnAlert._logged=false);
+  }
+}
+
+// ── Loop de frames via requestAnimationFrame (sem Camera do MediaPipe) ──
+let rafId=null;
+let frameProcessing=false;
+
+async function frameLoop(){
+  if(!running) return;
+  if(!frameProcessing && video.readyState>=2){
+    frameProcessing=true;
+    try{ await faceMesh.send({image:video}); } catch(e){}
+    frameProcessing=false;
+  }
+  rafId=requestAnimationFrame(frameLoop);
+}
+
+// ── Iniciar / Parar ──
+async function startMonitoring(){
+  if(!audioCtx) audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  audioCtx.resume();
+
+  btnStart.disabled=true;
+  btnStart.textContent='Iniciando…';
+
+  faceMesh = new FaceMesh({locateFile: f =>
+    `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`});
+
+  faceMesh.setOptions({
+    maxNumFaces:1,
+    refineLandmarks:true,
+    minDetectionConfidence:0.55,
+    minTrackingConfidence:0.55
+  });
+  faceMesh.onResults(onResults);
+
+  try {
+    const selectedId = document.getElementById('cam-select').value;
+    const videoConstraints = selectedId
+      ? { deviceId: { exact: selectedId }, width:640, height:480 }
+      : { width:640, height:480 };
+    const stream = await navigator.mediaDevices.getUserMedia({video: videoConstraints});
+    video.srcObject=stream;
+    await video.play();
+
+    // Inicializa o FaceMesh com um frame antes de começar o loop
+    await faceMesh.send({image:video});
+
+    running=true;
+    rafId=requestAnimationFrame(frameLoop);
+
+    placeholder.style.display='none';
+    liveBadge.classList.add('visible');
+    btnStart.disabled=false;
+    btnStart.textContent='■ Parar Monitoramento';
+    btnStart.classList.add('stop');
+    addLog('Câmera iniciada — monitoramento ativo','ok');
+  } catch(e){
+    btnStart.disabled=false;
+    btnStart.textContent='▶ Iniciar Monitoramento';
+    addLog('Erro: '+e.message,'danger');
+    alert('Não foi possível acessar a câmera.\n\n'+e.message);
+  }
+}
+
+function stopMonitoring(){
+  running=false;
+  if(rafId){ cancelAnimationFrame(rafId); rafId=null; }
+  if(faceMesh){ faceMesh.close(); faceMesh=null; }
+  if(video.srcObject){ video.srcObject.getTracks().forEach(t=>t.stop()); video.srcObject=null; }
+  stopBeep(); stopFlash();
+  eyeCount=0; yawnCount=0; alertActive=false; yawnAlert=false;
+  placeholder.style.display='flex';
+  liveBadge.classList.remove('visible');
+  bannerEl.className='';
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  setStatus('ok');
+  updateBars(0,0,0);
+  btnStart.textContent='▶ Iniciar Monitoramento';
+  btnStart.classList.remove('stop');
+  running=false;
+  addLog('Monitoramento encerrado','warn');
+}
+
+btnStart.addEventListener('click', ()=>{
+  running ? stopMonitoring() : startMonitoring();
+});
+</script>
+</body>
+</html>
+<script>
+// ── Enumerar câmeras ──
+async function listCameras(){
+  const sel = document.getElementById('cam-select');
+  const hint = document.getElementById('cam-hint');
+  sel.innerHTML = '<option value="">Carregando…</option>';
+  try {
+    const tmp = await navigator.mediaDevices.getUserMedia({video:true});
+    tmp.getTracks().forEach(t=>t.stop());
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const cams = devices.filter(d=>d.kind==='videoinput');
+    sel.innerHTML = '';
+    if(cams.length===0){
+      sel.innerHTML='<option value="">Nenhuma câmera encontrada</option>';
+      hint.textContent='Nenhum dispositivo de vídeo detectado.';
+      return;
+    }
+    cams.forEach((cam,i)=>{
+      const opt=document.createElement('option');
+      opt.value=cam.deviceId;
+      opt.textContent=cam.label || 'Câmera '+(i+1);
+      sel.appendChild(opt);
+    });
+    hint.textContent=cams.length+' câmera(s) encontrada(s). Selecione e clique em Iniciar.';
+    addLog(cams.length+' câmera(s) detectada(s)','ok');
+  } catch(e){
+    sel.innerHTML='<option value="">Erro ao listar câmeras</option>';
+    hint.textContent='Permissão negada ou câmera em uso.';
+    addLog('Erro ao listar: '+e.message,'danger');
+  }
+}
+document.getElementById('btn-refresh-cams').addEventListener('click', listCameras);
+window.addEventListener('load', ()=>{ setTimeout(listCameras, 800); });
+</script>
