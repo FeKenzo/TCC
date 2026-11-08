@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "ChargeSense",
+    "slug": "chargesense-mobile",
+    "scheme": "chargesense",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "backgroundColor": "#071421",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.chargesense.tcc"
+    }
+  }
+}

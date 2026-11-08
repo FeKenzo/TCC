@@ -1,0 +1,12 @@
+node_modules/
+.expo/
+.tmp/
+dist/
+web-build/
+ios/
+*.db
+*.db-shm
+*.db-wal
+.env*
+!.env.example
+
