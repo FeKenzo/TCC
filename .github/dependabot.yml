@@ -1,0 +1,16 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /chargesense-mobile
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: gradle
+    directory: /chargesense-mobile/android
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

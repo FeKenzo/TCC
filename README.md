@@ -47,6 +47,12 @@ Para abrir o projeto nativo no Android Studio, use **File > Open** e selecione `
 | [`chargesense-mobile/src/data/readings.ts`](chargesense-mobile/src/data/readings.ts) | Criação do banco e consultas SQLite |
 | [`chargesense-mobile/README.md`](chargesense-mobile/README.md) | Instruções do aplicativo |
 
+## CI/CD
+
+A pipeline em [`.github/workflows/android.yml`](.github/workflows/android.yml) roda a cada push e pull request. Ela verifica o TypeScript, bloqueia dependências com vulnerabilidades altas ou críticas, compila um APK de demonstração e o disponibiliza nos **Artifacts** da execução no GitHub Actions. O arquivo `app-release.apk.sha256` permite conferir a integridade do download. O APK usa uma chave de depuração criada no ambiente de build; não é uma versão para publicar na Play Store.
+
+O [Dependabot](.github/dependabot.yml) verifica semanalmente as dependências npm, Gradle e GitHub Actions.
+
 Para verificar o TypeScript sem abrir o emulador:
 
 ```powershell
