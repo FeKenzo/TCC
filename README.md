@@ -12,6 +12,10 @@ Aplicativo Android desenvolvido como protótipo do TCC para acompanhar as grande
 
 Os valores da simulação são exemplos para testar a interface. **O aplicativo ainda não recebe dados de sensores ou de um servidor.** A simulação funciona enquanto a tela do app está aberta.
 
+## Documento do TCC
+
+O texto revisado do trabalho está em [`TCC_ChargeSense.docx`](TCC_ChargeSense.docx).
+
 ## Tecnologias
 
 React Native, Expo, TypeScript e SQLite (`expo-sqlite`). O projeto Android fica na pasta [`chargesense-mobile/android`](chargesense-mobile/android).
