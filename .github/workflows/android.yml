@@ -1,0 +1,75 @@
+name: Android CI
+
+on:
+  push:
+    branches: [main, codex/chargesense-mobile]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Verificar e gerar APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v7
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: chargesense-mobile/package-lock.json
+
+      - name: Configurar Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Configurar Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Instalar componentes Android
+        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.1.12297006' 'cmake;3.22.1'
+
+      - name: Instalar dependências
+        working-directory: chargesense-mobile
+        run: npm ci
+
+      - name: Verificar TypeScript
+        working-directory: chargesense-mobile
+        run: npm run typecheck
+
+      - name: Verificar vulnerabilidades altas e críticas
+        working-directory: chargesense-mobile
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Compilar APK de demonstração
+        working-directory: chargesense-mobile/android
+        env:
+          NODE_ENV: production
+        run: bash ./gradlew :app:assembleRelease --no-daemon
+
+      - name: Conferir assinatura e gerar hash
+        run: |
+          APK=chargesense-mobile/android/app/build/outputs/apk/release/app-release.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify "$APK"
+          sha256sum "$APK" > "$APK.sha256"
+
+      - name: Disponibilizar APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: ChargeSense-Android-Demo
+          path: |
+            chargesense-mobile/android/app/build/outputs/apk/release/app-release.apk
+            chargesense-mobile/android/app/build/outputs/apk/release/app-release.apk.sha256
+          if-no-files-found: error
+          retention-days: 7
