@@ -49,7 +49,7 @@ Para abrir o projeto nativo no Android Studio, use **File > Open** e selecione `
 
 ## CI/CD
 
-A pipeline em [`.github/workflows/android.yml`](.github/workflows/android.yml) roda a cada push e pull request. Ela verifica o TypeScript, bloqueia dependências com vulnerabilidades altas ou críticas, compila um APK de demonstração e o disponibiliza nos **Artifacts** da execução no GitHub Actions. O arquivo `app-release.apk.sha256` permite conferir a integridade do download. O APK usa uma chave de depuração criada no ambiente de build; não é uma versão para publicar na Play Store.
+A pipeline em [`.github/workflows/android.yml`](.github/workflows/android.yml) executa em pushes nas branches `main` e `codex/chargesense-mobile`, em pull requests destinados à `main` e também pode ser iniciada manualmente pela aba **Actions** (`workflow_dispatch`). Ela verifica o TypeScript, bloqueia dependências com vulnerabilidades altas ou críticas, compila um APK de demonstração e o disponibiliza nos **Artifacts** da execução no GitHub Actions, com o nome `ChargeSense-Android-Demo` e retenção de 7 dias. O arquivo `app-release.apk.sha256` permite conferir a integridade do download. O APK usa uma chave de depuração criada no ambiente de build; não é uma versão para publicar na Play Store.
 
 O [Dependabot](.github/dependabot.yml) verifica semanalmente as dependências npm, Gradle e GitHub Actions.
 
